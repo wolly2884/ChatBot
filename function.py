@@ -1,54 +1,90 @@
 import os
 import json
 import datetime
+from Consultas import checar_consulta
 
-# Diretório para armazenar as sessões de conversa
-diretorio = r"C:\tfs\chatbot-saude\venv\Conversas"
+# Diretório para armazenar conversas
+diretorio = r"C:\tfs\chatbot-saude\Conversas"
 if not os.path.exists(diretorio):
     os.makedirs(diretorio)
 
-# Contexto fixo do chatbot
-contexto = """
-Você é um assistente especializado na área de saúde suplementar e regulação de planos de saúde. Seu objetivo é fornecer informações detalhadas e corretas sobre coberturas, carências, rede credenciada, auditoria médica e normas da ANS.
-Caso o usuário pergunte sobre:
+# Número máximo de perguntas antes do resumo
+MAX_PERGUNTAS = 3
 
-Cobertura de procedimentos → Consulte as normas da ANS e informe se o procedimento está no Rol de Procedimentos obrigatórios.
-Carência → Explique os prazos máximos permitidos pela ANS para cada tipo de atendimento.
-Reembolso → Informe sobre regras e prazos para solicitação de reembolso de despesas médicas.
-Auditoria médica → Explique os critérios utilizados para análise de procedimentos e solicitações médicas.
-TUSS e tabelas médicas → Oriente sobre como identificar códigos e classificações de procedimentos médicos.
-Autorização de exames e cirurgias → Informe sobre prazos para autorização e os direitos do beneficiário.
-
-o valor do procedimento é de R$ 100,00 e o prazo de entrega é de 5 dias úteis.
-o codigo e o 10101012 e a classificação é de 1.
-o prazo para autorização é de 10 dias úteis e o beneficiário tem direito a solicitar a autorização.
-"""
-
-# Listar sessões disponíveis
+##########################################################################################################################
+##    Lista as sessões de conversa disponíveis.                                                                         ##    
+##    Esta função lista todos os arquivos no diretório especificado que terminam com "_user.json".                      ##
+##    Os arquivos são retornados em uma lista ordenada em ordem decrescente. Se não houver arquivos,                    ##     
+##    uma lista vazia é retornada.                                                                                      ##                                               
+##    Returns:                                                                                                          ##
+##        list: Uma lista de nomes de arquivos que representam as sessões de conversa, ordenada em ordem decrescente.   ##
+##########################################################################################################################
 def listar_sessoes():
+ 
+    """Lista as sessões de conversa disponíveis."""
     arquivos = [f for f in os.listdir(diretorio) if f.endswith("_user.json")]
     return sorted(arquivos, reverse=True) if arquivos else []
 
-# Escolher uma sessão ou criar uma nova
-def escolher_sessao():
+##########################################################################################################################
+##    Exibe o histórico de conversa.                                                                                    ##
+##    Args:                                                                                                             ##
+##        user_history (list): O histórico do usuário.                                                                  ##
+##        assistant_history (list): O histórico do assistente.                                                          ##
+##########################################################################################################################
+def exibir_historico(user_history, assistant_history):
+    print("\n📜 Histórico de Usuário 📜")
+    for msg in user_history:
+        print(f"👤 Você: {msg}")
+    
+    print("\n🤖 Respostas do Chatbot 🤖")
+    for msg in assistant_history:
+        print(f"🤖 Chatbot: {msg}")
+    
+    print("\n🔹 Iniciando nova sessão 🔹\n")
+##########################################################################################################################
+##    Escolhe uma sessão existente ou cria uma nova.                                                                    ##
+##    Args:                                                                                                             ##
+##        importar_historico (str): Indica se deve importar o histórico ('s' para sim, qualquer outra coisa para não).  ##
+##    Returns:                                                                                                          ##
+##        tuple: Um par de strings contendo o nome da base escolhida e o nome da nova base.                             ##
+##########################################################################################################################
+def escolher_sessao(importar_historico):
+ 
+    """Escolhe uma sessão existente ou cria uma nova."""
+    data_atual = datetime.datetime.now().strftime("%Y%m%d")
     sessoes = listar_sessoes()
-    if sessoes:
-        print("\n📂 Sessões anteriores disponíveis:")
-        for i, sessao in enumerate(sessoes):
-            print(f"{i+1}. {sessao.replace('_user.json', '')}")
-        escolha = input("\nDigite o número da sessão para carregar ou pressione Enter para iniciar uma nova: ").strip()
-        if escolha.isdigit():
-            escolha = int(escolha) - 1
-            if 0 <= escolha < len(sessoes):
-                base_nome = sessoes[escolha].replace("_user.json", "")
-                return os.path.join(diretorio, base_nome)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return os.path.join(diretorio, f"chat_{timestamp}")
 
-# Carregar histórico do arquivo
+    base_escolhida = f"chat_{data_atual}"
+    base_nova = f"chat_{data_atual}"
+    if importar_historico == 's': 
+        if sessoes:
+            print("\n📂 Sessões anteriores disponíveis:")
+            for i, sessao in enumerate(sessoes):
+                print(f"{i+1}. {sessao.replace('_user.json', '')}")
+
+            escolha = input("\nDigite o número da sessão para carregar ou pressione Enter para iniciar uma nova: ").strip()
+
+            if escolha.isdigit():
+                escolha = int(escolha) - 1
+                if 0 <= escolha < len(sessoes):
+                    base_escolhida = sessoes[escolha].replace("_user.json", "")
+                    if data_atual in base_escolhida:
+                        return base_escolhida, base_nova 
+
+    return base_escolhida, base_nova
+
+##########################################################################################################################
+##    Carrega o histórico de uma sessão de conversa.                                                                    ##
+##    Args:                                                                                                             ##
+##        base_nome (str): O nome da base de dados da sessão.                                                           ##
+##    Returns:                                                                                                          ##
+##        tuple: Um par de listas contendo o histórico do usuário e do assistente.                                      ##
+##########################################################################################################################
 def carregar_historico(base_nome):
-    user_arquivo = base_nome + "_user.json"
-    assistant_arquivo = base_nome + "_assistant.json"
+
+    """Carrega o histórico de uma sessão de conversa."""
+    user_arquivo = os.path.join(diretorio, base_nome + "_user.json")
+    assistant_arquivo = os.path.join(diretorio, base_nome + "_assistant.json")
     
     user_history = []
     assistant_history = []
@@ -69,58 +105,84 @@ def carregar_historico(base_nome):
     
     return user_history, assistant_history
 
-# Salvar histórico nos arquivos
+##########################################################################################################################
+##    Salva o histórico da sessão.                                                                                      ##
+##    Args:                                                                                                             ##
+##        base_nome (str): O nome da base de dados da sessão.                                                           ##
+##        user_history (list): O histórico do usuário.                                                                  ##
+##        assistant_history (list): O histórico do assistente.                                                          ##
+##########################################################################################################################
 def salvar_historico(base_nome, user_history, assistant_history):
+    """Salva o histórico da sessão."""
+    base_nome = os.path.join(diretorio, base_nome)
+
     with open(base_nome + "_user.json", "w", encoding="utf-8") as file:
         json.dump(user_history, file, ensure_ascii=False, indent=4)
     with open(base_nome + "_assistant.json", "w", encoding="utf-8") as file:
         json.dump(assistant_history, file, ensure_ascii=False, indent=4)
 
-# Exibir histórico antes de iniciar o chatbot
-def exibir_historico(user_history, assistant_history):
-    print("\n📜 Histórico de Usuário 📜")
-    for msg in user_history:
-        print(f"👤 Você: {msg}")
-    
-    print("\n🤖 Respostas do Chatbot 🤖")
-    for msg in assistant_history:
-        print(f"🤖 Chatbot: {msg}")
-    
-    print("\n🔹 Iniciando nova sessão 🔹\n")
-
-# Função principal do chatbot
+##########################################################################################################################
+##    Inicia a conversa com o chatbot, permitindo três perguntas e gerando um resumo final.                             ##
+##    Args:                                                                                                             ##
+##        model (Chatbot): O modelo do chatbot.                                                                         ##
+##########################################################################################################################
 def chat(model):
-    # Historico da sessão
+    """Inicia a conversa com o chatbot."""
     importar_historico = input("Deseja importar o histórico da sessão anterior? (s/n): ").strip().lower()
+    base_escolhida, base_nova = escolher_sessao(importar_historico)
     
-    # Carregar histórico das sessões anteriores
-    if importar_historico != 's':
-        user_history = []
-        assistant_history = []
-    else:
-        base_nome = escolher_sessao()
-        user_history, assistant_history = carregar_historico(base_nome)
+    if importar_historico == 's':
+        user_history, assistant_history = carregar_historico(base_escolhida)
         exibir_historico(user_history, assistant_history)
-
-    # Iniciar chatbot com o contexto fixo
-    print("Chatbot iniciado! Digite 'sair' para encerrar.")
+    else:
+        user_history, assistant_history = [], []
     
-    while True:
+    print("Chatbot iniciado! Você pode fazer até três perguntas. Digite 'sair' para encerrar.")
+    contador_perguntas = 0
+    
+    while contador_perguntas < MAX_PERGUNTAS:
         user_input = input("Você: ").strip()
         if user_input.lower() == "sair":
-            print("Chatbot encerrado!")
-            salvar_historico(base_nome, user_history, assistant_history)
             break
-        try:
-            # Incluir o contexto fixo nas entradas do usuário
-            full_input = contexto + "\nUsuário: " + user_input
-            user_history.append(user_input)
-            
-            # Gerar a resposta com o modelo
-            response = model.generate_content(full_input)
-            assistant_history.append(response.text)
-            
-            print("Chatbot:", response.text)
-            salvar_historico(base_nome, user_history, assistant_history)
-        except Exception as e:
-            print("Ocorreu um erro:", str(e))
+        
+        user_history.append(user_input)
+        resposta = checar_consulta(user_input)  
+
+        if not resposta:
+            prompt_ajustado = (
+                "Responda de forma amigável, como se fosse um gaúcho do interior conversando com um amigo. "
+                "Use expressões como 'bah', 'tchê', 'guria', 'guri', 'capaz', 'mas bah', 'tri', 'bagual', "
+                "'barbaridade', 'coisa séria' e 'é de cair os butia do bolso'. Mantenha a resposta clara e objetiva sobre saúde suplementar. "
+                "Aqui está a pergunta do usuário:\n"
+                f"{user_input}"
+            )
+        else:
+            prompt_ajustado = (
+                "Responda de forma amigável, como se fosse um gaúcho do interior conversando com um amigo. "
+                "Use expressões como 'bah', 'tchê', 'guria', 'guri', 'capaz', 'mas bah', 'tri', 'bagual', "
+                "'barbaridade', 'coisa séria' e 'é de cair os butia do bolso'. "
+                "Aqui está a pergunta do usuário:\n"
+                f"{resposta}"
+            )
+
+        resposta = model.generate_content(prompt_ajustado).text
+        assistant_history.append(resposta)
+        
+        print("Chatbot:", resposta)
+        contador_perguntas += 1
+        salvar_historico(base_nova, user_history, assistant_history)
+        
+        if contador_perguntas == 3:
+            print("\n🔹🔹🔹 RESUMO PARCIAL 🔹🔹🔹\n")
+            respostas_chatbot = "\n".join(assistant_history[-3:])
+            resumo_parcial = model.generate_content(f"Resuma as seguintes respostas do chatbot:\n{respostas_chatbot}").text
+            assistant_history.append("\nResumo parcial:\n" + resumo_parcial)
+            print(resumo_parcial)
+    
+    print("\n🔹🔹🔹 RESUMO FINAL 🔹🔹🔹\n")
+    respostas_chatbot = "\n".join(assistant_history)
+    resumo_final = model.generate_content(f"Resuma as seguintes respostas do chatbot:\n{respostas_chatbot}").text
+    assistant_history.append("\nResumo final:\n" + resumo_final)
+    print(resumo_final)
+    salvar_historico(base_nova, user_history, assistant_history)
+    print("\nChatbot encerrado!")
