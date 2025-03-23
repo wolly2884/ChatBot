@@ -77,6 +77,9 @@ Chatbot: O valor do reembolso é de R$ 50,00 e o prazo para pagamento é de 30 d
 - Carência para internações: 180 dias.
 - Reembolso para consultas: R$ 50,00, prazo de 30 dias.
 ```
+## Vídeo Demonstrativo
+
+Veja o chatbot em ação neste vídeo: YouTube
 
 ## Problemas Conhecidos
 - Algumas consultas de CNPJ podem falhar devido a certificados SSL. Se isso ocorrer, tente **atualizar os certificados CA** ou desativar a verificação SSL (temporariamente) em `Consultas.py`.
